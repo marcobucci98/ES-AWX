@@ -1,0 +1,36 @@
+---
+- name: Recupera la sorgente Java da VM e pubblica come artefatto AWX
+  hosts: all
+  gather_facts: false
+  vars:
+    source_path: "/home/vagrant/HelloWorld.java"
+
+  tasks:
+    - name: Esistenza sorgente Java
+      ansible.builtin.stat:
+        path: "{{ source_path }}"
+      register: file_stat
+
+    - name: File Mancante
+      ansible.builtin.fail:
+        msg: "File {{ source_path }} non trovato sulla VM"
+      when: not file_stat.stat.exists
+
+    - name: Contenuto file
+      ansible.builtin.slurp:
+        src: "{{ source_path }}"
+      register: slurped
+
+    - name: Calcolo SHA256 della sorgente
+      ansible.builtin.set_fact:
+        source_sha256: "{{ slurped.content | b64decode | hash('sha256') }}"
+        source_filename: "{{ source_path | basename }}"
+
+    - name: Pubblica l'artefatto
+      ansible.builtin.set_stats:
+        data:
+          source_filename: "{{ source_filename }}"
+          sha256: "{{ source_sha256 }}"
+          source_b64: "{{ slurped.content | trim }}"
+          source_size: "{{ file_stat.stat.size }}" 
+        per_host: false
